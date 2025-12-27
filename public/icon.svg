@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" preserveAspectRatio="none" viewBox="0 0 60 60">
+  <!-- 路径移到左上角并顺时针旋转90度 -->
+  <path d="M15 15 C10 20 10 25 15 30 C20 35 25 40 30 40 C35 40 40 35 45 30 C50 25 50 20 45 15" fill="none" stroke="#41B883" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" transform="rotate(90 25 25)"/>
+  <!-- 文本移到左上角 -->
+  <text x="20" y="34" font-family="Arial, sans-serif" font-size="12" font-weight="bold" letter-spacing="3" fill="#F59E0B">SVG</text>
+</svg>
