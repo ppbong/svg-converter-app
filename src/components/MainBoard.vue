@@ -6,8 +6,8 @@ import ResultPreview from './ResultPreview.vue'
 
 // SVG文件内容
 const svgContent = ref('')
-// SVG文件名
-const fileName = ref('')
+// SVG文件路径
+const filePath = ref('')
 // 是否有选中的文件
 const hasSelectedFile = ref(false)
 
@@ -21,9 +21,9 @@ const progressStatus = ref<'' | 'success' | 'exception' | 'warning'>('')
 const resultPreview = ref('')
 
 // 处理文件选中事件
-const handleFileSelected = (content: string, name: string) => {
+const handleFileSelected = (content: string, path: string) => {
   svgContent.value = content
-  fileName.value = name
+  filePath.value = path
   hasSelectedFile.value = true
   // 重置转换状态
   isConverting.value = false
@@ -34,7 +34,7 @@ const handleFileSelected = (content: string, name: string) => {
 // 处理文件删除事件
 const handleFileDeleted = () => {
   svgContent.value = ''
-  fileName.value = ''
+  filePath.value = ''
   hasSelectedFile.value = false
   // 重置转换状态
   isConverting.value = false
@@ -43,13 +43,21 @@ const handleFileDeleted = () => {
 }
 
 // 处理开始转换事件
-const handleStartConvert = (format: string, sizes: string[], content: string) => {
+const handleStartConvert = (filePath: string, format: string, sizes: string | string[]) => {
   isConverting.value = true
   progressPercent.value = 0
   progressStatus.value = ''
   
-  // 模拟转换过程
-  simulateConversion()
+  if (window.electronApi) {
+    window.electronApi.convertSvg(filePath, format, sizes).then((result) => {
+      console.log(result)
+      if (result === '转换完成') {
+        progressStatus.value = 'success'
+      } else {
+        progressStatus.value = 'exception'
+      }
+    })
+  }
 }
 
 // 处理取消转换事件
@@ -57,23 +65,6 @@ const handleCancelConvert = () => {
   isConverting.value = false
   progressPercent.value = 0
   progressStatus.value = 'exception'
-}
-
-// 模拟转换过程
-const simulateConversion = () => {
-  let progress = 0
-  const interval = setInterval(() => {
-    progress += 10
-    progressPercent.value = progress
-    
-    if (progress >= 100) {
-      clearInterval(interval)
-      isConverting.value = false
-      progressStatus.value = 'success'
-      // 模拟转换结果（实际应用中应该是真实的转换结果）
-      resultPreview.value = 'https://picsum.photos/200/200'
-    }
-  }, 300)
 }
 </script>
 
@@ -98,8 +89,7 @@ const simulateConversion = () => {
           </template>
           <FileConvert 
             :has-selected-file="hasSelectedFile"
-            :svg-content="svgContent"
-            :file-name="fileName"
+            :file-path="filePath"
             @start-convert="handleStartConvert"
             @cancel-convert="handleCancelConvert"
           />

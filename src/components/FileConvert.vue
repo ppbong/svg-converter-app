@@ -25,16 +25,14 @@ const defaultSizes = {
 interface Props {
   // 是否有选中的SVG文件
   hasSelectedFile: boolean
-  // 选中的SVG文件内容
-  svgContent?: string
-  // 选中的SVG文件名
-  fileName?: string
+  // 选中的SVG文件路径
+  filePath?: string
 }
 
 // 定义事件
 const emit = defineEmits<{
   // 开始转换
-  (e: 'start-convert', format: ConvertFormat, sizes: string[], svgContent: string): void
+  (e: 'start-convert', filePath: string, format: ConvertFormat, sizes: string[]): void
   // 取消转换
   (e: 'cancel-convert'): void
 }>()
@@ -66,7 +64,7 @@ const isConverting = ref(false)
 
 // 处理转换
 const handleConvert = () => {
-  if (!props.hasSelectedFile || !props.svgContent) {
+  if (!props.hasSelectedFile || !props.filePath) {
     return
   }
   
@@ -78,7 +76,7 @@ const handleConvert = () => {
     const sizesToConvert = Array.isArray(formData.value.selectedSizes) 
       ? formData.value.selectedSizes 
       : [formData.value.selectedSizes]
-    emit('start-convert', formData.value.selectedFormat, sizesToConvert, props.svgContent)
+    emit('start-convert', props.filePath!, formData.value.selectedFormat, sizesToConvert)
   } else {
     // 取消转换
     emit('cancel-convert')
