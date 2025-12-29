@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Delete } from '@element-plus/icons-vue'
+import type { UploadFile, UploadFiles } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+
+interface Props {
+  isConverting: boolean
+}
+
+// 获取组件属性
+const props = defineProps<Props>()
 
 // 定义事件
 const emit = defineEmits<{
@@ -15,10 +22,11 @@ const emit = defineEmits<{
 const fileSelected = ref('')
 const fileName = ref('')
 
-const handleFileChange = (file: any) => {
-    // 获取文件名和扩展名
-    const name = file.name
-    const fileExtension = name.substring(name.lastIndexOf('.') + 1).toLowerCase()
+const handleFileChange = (file: UploadFile, _files: UploadFiles) => {
+    // 获取文件名
+    fileName.value = file.name
+    // 提取文件扩展名
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.') + 1).toLowerCase()
     // 获取文件MIME类型
     const fileType = file.raw?.type || ''
     
@@ -52,12 +60,12 @@ const handleFileChange = (file: any) => {
         // 创建新的Blob对象
         const blob = new Blob([modifiedSvgContent], { type: 'image/svg+xml' })
         fileSelected.value = URL.createObjectURL(blob)
-        fileName.value = name
         
         // 发送选中文件事件
-        emit('file-selected', modifiedSvgContent, name)
+        emit('file-selected', modifiedSvgContent, fileName.value)
     }
-    reader.readAsText(file.raw)
+
+    reader.readAsText(file.raw as Blob)
 }
 
 const handleFileDelete = () => {
@@ -74,24 +82,20 @@ const handleFileDelete = () => {
 
 <template>
   <div class="file-select">
-    <div v-if="fileSelected" class="file-preview">
+    <div class="file-preview" v-show="fileSelected">
         <img :src="fileSelected" alt="file preview">
-        <el-button 
-            class="delete-btn"
-            size="small" 
-            type="danger" 
-            :icon="Delete"
-            :show-file-list="false"
-            @click="handleFileDelete"
-        >
-        </el-button>
+        <div class="file-info">
+            <p>文件名: {{ fileName }}</p>
+        </div>
+        <el-button type="primary" @click="handleFileDelete" :disabled="isConverting">重新选择</el-button>
     </div>
-    <div v-else class="file-upload">
+    <div class="file-upload" v-show="!fileSelected">
       <el-upload
         class="file-uploader"
         action="#"
         accept=".svg"
         drag
+        :show-file-list="false"
         :auto-upload="false"
         :on-change="handleFileChange"
         >
@@ -128,17 +132,5 @@ const handleFileDelete = () => {
     object-position: center;
     display: block !important;
     flex-shrink: 0;
-}
-
-.delete-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.file-preview:hover .delete-btn {
-    opacity: 1;
 }
 </style>

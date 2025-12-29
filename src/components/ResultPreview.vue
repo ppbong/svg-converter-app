@@ -9,6 +9,8 @@ interface Props {
   progressStatus?: 'success' | 'exception' | 'warning' | ''
   // 转换结果预览图片
   resultPreview?: string
+  // 转换结果文件路径
+  resultFilePath?: string
 }
 
 defineProps<Props>()
@@ -29,6 +31,9 @@ defineProps<Props>()
         <!-- 如果转换完成，显示预览 -->
         <div v-else-if="resultPreview" class="preview">
             <img :src="resultPreview" alt="result preview">
+            <div class="file-info">
+                <p>{{ resultFilePath }}</p>
+            </div>
         </div>
         <!-- 如果无转换 -->
         <div v-else class="no-preview">
@@ -69,5 +74,11 @@ defineProps<Props>()
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+}
+
+.file-info {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #606266;
 }
 </style>

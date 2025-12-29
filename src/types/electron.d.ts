@@ -1,7 +1,4 @@
-// 定义 Electron API 接口
-export interface ElectronApi {
-  convertSvg: (svgFilePath: string, convertFormat: string, convertSize: string | string[]) => Promise<string>
-}
+import { ElectronApi } from '../../electron/types/global'
 
 declare global {
   interface Window {

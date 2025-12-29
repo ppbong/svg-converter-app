@@ -1,13 +1,32 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 import SVGConverter from '@ppbong/svg-converter'
+import type { AppConfig, ConvertFormat } from '../types/global'
 
 // 是否为开发环境
 const isDev = process.env.NODE_ENV === 'development'
 
 const __filename = url.fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+const appConfig : AppConfig = {
+  convertFormats: ['PNG', 'ICO', 'ICNS'],
+  pngSizeOptions: [16, 24, 32, 48, 64, 96, 128, 256, 512, 1024],
+  pngDefaultSize: 16,
+  icoSizeOptions: [16, 24, 32, 48, 64, 96, 128, 256],
+  icoDefaultSizes: [16, 24, 32, 48, 64],
+  icnsSizeOptions: [16, 32, 64, 128, 256, 512],
+  icnsDefaultSizes: [16, 32, 64, 128, 256, 512],
+}
+
+// 数据目录
+const dataDir = isDev ? path.join(__dirname, '..', 'data') : path.join(process.resourcesPath, '..','data')
+// 确保数据目录存在
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true })
+}
 
 // 主窗口
 let mainWindow: BrowserWindow | null = null
@@ -16,12 +35,17 @@ let mainWindow: BrowserWindow | null = null
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1200,
-    height: 800,
+    height: 760,
+    minWidth: 1200,
+    minHeight: 760,
+    maxWidth: 1200,
+    maxHeight: 760,
+    resizable: false,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, '../preload/index.mjs'),
+      preload: path.join(__dirname, '..', 'preload', 'index.mjs'),
     },
   })
 
@@ -31,7 +55,7 @@ const createWindow = () => {
     // 打开开发工具
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'))
   }
 }
 
@@ -40,46 +64,87 @@ app.disableHardwareAcceleration()
 
 // 当 Electron 完成初始化并准备创建浏览器窗口时调用
 app.whenReady().then(() => {
-  // 处理 IPC 事件
-  ipcMain.handle('svg-convert', async (_event, svgFilePath: string, convertFormat: string, convertSize: string | string[]) => {
-    // 转换后的文件将保存在与 SVG 文件相同的目录中
-    const outputDir = path.dirname(svgFilePath)
-    // 转换后的文件名将与 SVG 文件相同，只是扩展名不同
-    const outputFileName = path.basename(svgFilePath, path.extname(svgFilePath)) + '.' + convertFormat.toLowerCase()
-    const outputFilePath = path.join(outputDir, outputFileName)
+  // 处理应用配置请求
+  ipcMain.handle('app-config', async (_event) => {
+    return { success: true, message: '应用配置获取成功', appConfig }
+  })
 
-    const convertOptions = {} as any
+  // 处理文件选择请求
+  ipcMain.handle('svg-select', async (_event, svgFileName: string, svgFileContent: string) => {
+    if (!svgFileName || !svgFileContent || !svgFileName.endsWith('.svg')) {
+      return { success: false, message: '请选择要转换的 SVG 文件', filePath: '' }
+    }
 
-    if (convertFormat === 'PNG' && typeof convertSize === 'string') {
-      const pngSize = parseInt(convertSize)
-      if (isNaN(pngSize)) {
-        return '请输入正确的转换大小'
-      }
-      
-      convertOptions.width = pngSize
-      convertOptions.height = pngSize
-    } else {
-      const sizes = convertSize instanceof Array ? convertSize.map((size) => parseInt(size)) : [ parseInt(convertSize) ]
-      if (sizes.some((size) => isNaN(size))) {
-        return '请输入正确的转换大小'
-      }
+    const svgFilePath = path.join(dataDir, svgFileName)
+    fs.writeFileSync(svgFilePath, svgFileContent)
 
-      convertOptions.size = sizes
+    return { success: true, message: 'SVG 文件选择成功', filePath: svgFilePath }
+  })
+
+  // 处理文件重置请求
+  ipcMain.handle('svg-reset', async (_event, svgFileName: string) => {
+    const resetFilePath = path.join(dataDir, svgFileName)
+
+    if (!fs.existsSync(resetFilePath)) {
+      return { success: false, message: '文件不存在', filePath: '' }
+    }
+
+    fs.unlinkSync(resetFilePath)
+
+    return { success: true, message: '文件重置成功', filePath: '' }
+  })
+
+  // 处理文件转换请求
+  ipcMain.handle('svg-convert', async (_event, svgFileName: string, convertFormat: ConvertFormat, convertSize: number | number[]) => {
+    const svgFilePath = path.join(dataDir, svgFileName)
+
+    if (!fs.existsSync(svgFilePath)) {
+      return { success: false, message: '请选择要转换的文件', filePath: '', resultFilePath: '' }
+    }
+
+    if (!appConfig.convertFormats.includes(convertFormat)) {
+      return { success: false, message: '请选择要转换的格式', filePath: '', resultFilePath: '' }
     }
 
     const svgConverter = new SVGConverter()
-    
-    if (convertFormat === 'PNG') {
-      await svgConverter.toPng(svgFilePath, outputFilePath, convertOptions)
-    } else if (convertFormat === 'ICO') {
-      await svgConverter.toIco(svgFilePath, outputFilePath, convertOptions)
-    } else if (convertFormat === 'ICNS') {
-      await svgConverter.toIcns(svgFilePath, outputFilePath, convertOptions)
+
+    // 固定转换大小为 128px 的预览文件
+    const previewFilePath = path.join(dataDir, svgFileName.replace('.svg', '-preview.png'))
+
+    // 转换预览文件
+    await svgConverter.toPng(svgFilePath, previewFilePath, { width: 128, height: 128 })
+
+    const resultFilePath = path.join(dataDir, svgFileName.replace('.svg', '.' + convertFormat.toLowerCase()))
+    if (fs.existsSync(resultFilePath)) {
+      fs.unlinkSync(resultFilePath)
+    }   
+
+    if (convertFormat === 'PNG' && typeof convertSize === 'number') {
+      if (!appConfig.pngSizeOptions.includes(convertSize)) {
+        return { success: false, message: '请输入正确的转换大小', filePath: svgFilePath, resultFilePath: '' }
+      }
+      // 转换 PNG 格式
+      await svgConverter.toPng(svgFilePath, resultFilePath, { width: convertSize, height: convertSize })
+    } else if (convertFormat === 'ICO' && Array.isArray(convertSize)) {
+      if (!convertSize.every((size) => appConfig.icoSizeOptions.includes(size))) {
+        return { success: false, message: '请输入正确的转换大小', filePath: svgFilePath, resultFilePath: '' }
+      }
+      // 转换 ICO 格式
+      await svgConverter.toIco(svgFilePath, resultFilePath, { sizes: convertSize })
+    } else if (convertFormat === 'ICNS' && Array.isArray(convertSize)) {
+      if (!convertSize.every((size) => appConfig.icnsSizeOptions.includes(size))) {
+        return { success: false, message: '请输入正确的转换大小', filePath: svgFilePath, resultFilePath: '' }
+      }
+      // 转换 ICNS 格式
+      await svgConverter.toIcns(svgFilePath, resultFilePath, { sizes: convertSize })
     } else {
-        return '不支持的转换格式'
+        return { success: false, message: '请输入正确的转换参数', filePath: svgFilePath, resultFilePath: '' }
     }
 
-    return '转换完成'
+    const resultPreview = fs.readFileSync(previewFilePath, 'base64')
+    const resultPreviewUrl = `data:image/png;base64,${resultPreview}`
+
+    return { success: true, message: '转换完成', filePath: svgFilePath, resultFilePath: resultFilePath, resultPreview: resultPreviewUrl }
   })
 
   createWindow()

@@ -1,13 +1,34 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import FileSelect from './FileSelect.vue'
 import FileConvert from './FileConvert.vue'
 import ResultPreview from './ResultPreview.vue'
+import type { AppConfig, ConvertFormat } from '../../electron/types/global'
+
+// 应用配置
+const appConfig = ref<AppConfig>({
+  convertFormats: [],
+  pngSizeOptions: [],
+  pngDefaultSize: 0,
+  icoSizeOptions: [],
+  icoDefaultSizes: [],
+  icnsSizeOptions: [],
+  icnsDefaultSizes: [],
+})
+
+// 初始化应用配置
+onMounted(() => {
+  if (window.electronApi) {
+    window.electronApi.getAppConfig().then((response) => {
+      appConfig.value = response.appConfig || appConfig.value
+    })
+  }
+})
 
 // SVG文件内容
 const svgContent = ref('')
-// SVG文件路径
-const filePath = ref('')
+// SVG文件名
+const fileName = ref('')
 // 是否有选中的文件
 const hasSelectedFile = ref(false)
 
@@ -19,43 +40,68 @@ const progressPercent = ref(0)
 const progressStatus = ref<'' | 'success' | 'exception' | 'warning'>('')
 // 转换结果预览
 const resultPreview = ref('')
+// 转换结果文件路径
+const resultFilePath = ref('')
 
 // 处理文件选中事件
-const handleFileSelected = (content: string, path: string) => {
+const handleFileSelected = (content: string, name: string) => {
   svgContent.value = content
-  filePath.value = path
+  fileName.value = name
   hasSelectedFile.value = true
   // 重置转换状态
   isConverting.value = false
   progressPercent.value = 0
   resultPreview.value = ''
+  resultFilePath.value = ''
+
+  if (window.electronApi) {
+    window.electronApi.selectSvgFile(name, content).then((response) => {
+      console.log(response)
+    })
+  }
 }
 
 // 处理文件删除事件
 const handleFileDeleted = () => {
+  if (window.electronApi) {
+    window.electronApi.resetSvgFile(fileName.value).then((response) => {
+      console.log(response)
+    })
+  }
+
   svgContent.value = ''
-  filePath.value = ''
+  fileName.value = ''
   hasSelectedFile.value = false
   // 重置转换状态
   isConverting.value = false
   progressPercent.value = 0
   resultPreview.value = ''
+  resultFilePath.value = ''
 }
 
 // 处理开始转换事件
-const handleStartConvert = (filePath: string, format: string, sizes: string | string[]) => {
+const handleStartConvert = (fileName: string, format: ConvertFormat, sizes: number | number[]) => {
   isConverting.value = true
   progressPercent.value = 0
   progressStatus.value = ''
   
   if (window.electronApi) {
-    window.electronApi.convertSvg(filePath, format, sizes).then((result) => {
-      console.log(result)
-      if (result === '转换完成') {
+    window.electronApi.convertSvg(fileName, format, sizes).then((response) => {
+      console.log(response)
+
+      if (response.success) {
         progressStatus.value = 'success'
+        progressPercent.value = 100
+        resultPreview.value = response.resultPreview || ''
+        resultFilePath.value = response.resultFilePath || ''
       } else {
         progressStatus.value = 'exception'
+        progressPercent.value = 50
+        resultPreview.value = ''
+        resultFilePath.value = ''
       }
+
+      isConverting.value = false
     })
   }
 }
@@ -76,7 +122,8 @@ const handleCancelConvert = () => {
           <template #header>
             <span>File Selector</span>
           </template>
-          <FileSelect 
+          <FileSelect
+            :is-converting="isConverting"
             @file-selected="handleFileSelected"
             @file-deleted="handleFileDeleted"
           />
@@ -88,8 +135,10 @@ const handleCancelConvert = () => {
             <span>Converter</span>
           </template>
           <FileConvert 
+            :is-converting="isConverting"
+            :app-config="appConfig"
             :has-selected-file="hasSelectedFile"
-            :file-path="filePath"
+            :file-name="fileName"
             @start-convert="handleStartConvert"
             @cancel-convert="handleCancelConvert"
           />
@@ -105,6 +154,7 @@ const handleCancelConvert = () => {
             :progress-percent="progressPercent"
             :progress-status="progressStatus"
             :result-preview="resultPreview"
+            :result-file-path="resultFilePath"
           />
         </el-card>
       </el-col>
@@ -135,7 +185,7 @@ const handleCancelConvert = () => {
 
 .el-card {
     border-radius: 15px;
-    height: 500px;
+    height: calc(100vh - 280px);
     display: flex;
     flex-direction: column;
 }
